@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# coding: utf-8
+# codiVng: utf-8
 
 # This is a test file for the VQC implementation of a HEP classification problem.
 # @author: Eric Drechsler (dr.eric.drechsler@gmail.com)
@@ -24,6 +24,9 @@ from qiskit.aqua.input import ClassificationInput
 from argparse import ArgumentParser
 
 argParser = ArgumentParser(add_help=False)
+steerArgs = argParser.add_argument_group('parameters')
+paraArgs = argParser.add_argument_group('parameters')
+
 argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=10)
 argParser.add_argument( '-sh', '--numberShots', help='Number of shots', default=1024)
 argParser.add_argument( '-mt', '--maxTrials', help='Max trials SPSA', default=20)
