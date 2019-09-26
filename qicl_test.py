@@ -24,18 +24,16 @@ from qiskit.aqua.input import ClassificationInput
 from argparse import ArgumentParser
 
 argParser = ArgumentParser(add_help=False)
-steerArgs = argParser.add_argument_group('parameters')
-paraArgs = argParser.add_argument_group('parameters')
-
+argParser.add_argument( '-od', '--steerOutDir', help='Output Directory', default="$TMP")
 argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=10)
-argParser.add_argument( '-sh', '--numberShots', help='Number of shots', default=1024)
-argParser.add_argument( '-mt', '--maxTrials', help='Max trials SPSA', default=20)
-argParser.add_argument( '-ss', '--saveSteps', help='SPSA save steps', default=5)
-argParser.add_argument( '-vfd', '--varFormDepth', help='variational form depth', default=2)
-argParser.add_argument( '-fmd', '--featMapDepth', help='Feature Map depth', default=1)
+argParser.add_argument( '-sh',   '--numberShots', help='Number of shots', default=1024)
+argParser.add_argument( '-mt',   '--maxTrials', help='Max trials SPSA', default=20)
+argParser.add_argument( '-ss',   '--saveSteps', help='SPSA save steps', default=5)
+argParser.add_argument( '-vfd',  '--varFormDepth', help='variational form depth', default=2)
+argParser.add_argument( '-fmd',  '--featMapDepth', help='Feature Map depth', default=1)
 args = argParser.parse_args()
 
-in_df = pandas.read_pickle("../MixData_PD.pkl")
+in_df = pandas.read_pickle("MixData_PD.pkl")
 
 nevt = args.numberEvents
 var1 = 'lep1_pt'
@@ -86,10 +84,11 @@ print("testing success ratio: ", result['testing_accuracy'])
 print("predicted classes:", result['predicted_classes'])
 
 #time or tag setting in name
-outtag="_".join([str(i) for i in vars(args).values()])
+outtag="_".join([str(vars(args)[i]) if not "steer" in str(i) else "" for i in vars(args)])
 outtag+="_%s"%(int(time.time()))
-pklFile=open("./qicl_test_%s.pkl"%outtag,'wb')
+pklFile=open("./qicl_test%s.pkl"%outtag,'wb')
 pickle.dump( result , pklFile)
+pickle.dump( vars(args) , pklFile)
 
 m, s = divmod(time.time()-time0, 60)
 h, m = divmod(m, 60)
