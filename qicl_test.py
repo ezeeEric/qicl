@@ -35,7 +35,7 @@ args = argParser.parse_args()
 
 in_df = pandas.read_pickle("MixData_PD.pkl")
 
-nevt = args.numberEvents
+nevt = int(args.numberEvents)
 var1 = 'lep1_pt'
 var2 = 'lep2_pt'
 var3 = 'reco_zv_mass'
@@ -69,24 +69,23 @@ testDict={"signal": np.array(testDict["signal"]), "background":  np.array(testDi
 params = {
     'problem': {'name': 'classification', 'random_seed': 420 },
     'algorithm': {'name': 'VQC', 'override_SPSA_params': True},
-    'backend': {'shots': args.numberShots},
-    'optimizer': {'name': 'SPSA', 'max_trials': args.maxTrials, 'save_steps': args.saveSteps},
-    'variational_form': {'name': 'RYRZ', 'depth': args.varFormDepth},
-    'feature_map': {'name': 'SecondOrderExpansion', 'depth': args.featMapDepth}
+    'backend': {'shots': int(args.numberShots)},
+    'optimizer': {'name': 'SPSA', 'max_trials': int(args.maxTrials), 'save_steps': int(args.saveSteps)},
+    'variational_form': {'name': 'RYRZ', 'depth': int(args.varFormDepth)},
+    'feature_map': {'name': 'SecondOrderExpansion', 'depth': int(args.featMapDepth)}
 }
 
 classification_input = ClassificationInput(trainDict, testDict, x_test)
 backend = BasicAer.get_backend('qasm_simulator')
 
-result={'testing_accuracy':None, 'predicted_classes':None}
-#result = run_algorithm(params, classification_input, backend=backend)
+result = run_algorithm(params, classification_input, backend=backend)
 print("testing success ratio: ", result['testing_accuracy'])
 print("predicted classes:", result['predicted_classes'])
 
 #time or tag setting in name
 outtag="_".join([str(vars(args)[i]) if not "steer" in str(i) else "" for i in vars(args)])
 outtag+="_%s"%(int(time.time()))
-pklFile=open("./qicl_test%s.pkl"%outtag,'wb')
+pklFile=open("{0}/qicl_test_{1}.pkl".format(args.steerOutDir,outtag),'wb')
 pickle.dump( result , pklFile)
 pickle.dump( vars(args) , pklFile)
 
