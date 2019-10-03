@@ -11,7 +11,6 @@ import pickle
 import time
 time0=time.time()
 
-from datasets import *
 from qiskit import BasicAer
 from qiskit.aqua import run_algorithm, QuantumInstance
 from qiskit.aqua.algorithms import VQC
@@ -21,11 +20,16 @@ from qiskit.aqua.components.variational_forms import RYRZ
 from qiskit.aqua.utils import split_dataset_to_data_and_labels, map_label_to_class_name
 from qiskit.aqua.input import ClassificationInput
 
+import numpy as np
+
+from plotter import plotTruth,plotVars
+
 from argparse import ArgumentParser
 
 argParser = ArgumentParser(add_help=False)
+argParser.add_argument( '-t', '--steerTestRun', action="store_true")
 argParser.add_argument( '-od', '--steerOutDir', help='Output Directory', default="$TMP")
-argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=10)
+argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=1000)
 argParser.add_argument( '-sh',   '--numberShots', help='Number of shots', default=1024)
 argParser.add_argument( '-mt',   '--maxTrials', help='Max trials SPSA', default=20)
 argParser.add_argument( '-ss',   '--saveSteps', help='SPSA save steps', default=5)
@@ -50,6 +54,11 @@ y_test=np.eye(2)[y_test_label]
 
 trainDict={"signal": [], "background": []}
 testDict ={"signal": [], "background": []}
+
+
+label_names = ['background','signal']
+#plotVars(x_train, in_df, label_names)
+#plotTruth(x_train,in_df,label_names)
 
 #TODO better way of dealing with this?
 for i in range(0,nevt):
@@ -77,10 +86,11 @@ params = {
 
 classification_input = ClassificationInput(trainDict, testDict, x_test)
 backend = BasicAer.get_backend('qasm_simulator')
-
-result = run_algorithm(params, classification_input, backend=backend)
-print("testing success ratio: ", result['testing_accuracy'])
-print("predicted classes:", result['predicted_classes'])
+result=None
+if not args.steerTestRun:
+    result = run_algorithm(params, classification_input, backend=backend)
+    print("testing success ratio: ", result['testing_accuracy'])
+    print("predicted classes:", result['predicted_classes'])
 
 #time or tag setting in name
 outtag="_".join([str(vars(args)[i]) if not "steer" in str(i) else "" for i in vars(args)])
