@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# codiVng: utf-8
+# coding: utf-8
 
 # This is a test file for the VQC implementation of a HEP classification problem.
 # @author: Eric Drechsler (dr.eric.drechsler@gmail.com)
@@ -28,13 +28,16 @@ from argparse import ArgumentParser
 
 argParser = ArgumentParser(add_help=False)
 argParser.add_argument( '-t', '--steerTestRun', action="store_true")
-argParser.add_argument( '-od', '--steerOutDir', help='Output Directory', default="$TMP")
+argParser.add_argument( '-od', '--steerOutDir', help='Output Directory', default="/tmp/edrechsl/")
 argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=1000)
 argParser.add_argument( '-sh',   '--numberShots', help='Number of shots', default=1024)
 argParser.add_argument( '-mt',   '--maxTrials', help='Max trials SPSA', default=20)
 argParser.add_argument( '-ss',   '--saveSteps', help='SPSA save steps', default=5)
 argParser.add_argument( '-vfd',  '--varFormDepth', help='variational form depth', default=2)
 argParser.add_argument( '-fmd',  '--featMapDepth', help='Feature Map depth', default=1)
+#default
+#argParser.add_argument( '-spsa',  '--spsaoptim', help='Use SPSA optimiser', action='store_true')
+argParser.add_argument( '-cob',  '--steerCobylaOptim', help='Use COBYLA optimiser', action='store_true')
 args = argParser.parse_args()
 
 in_df = pandas.read_pickle("MixData_PD.pkl")
@@ -75,6 +78,8 @@ for i in range(0,nevt):
          testDict["background"].append(x_test[i].tolist())
 testDict={"signal": np.array(testDict["signal"]), "background":  np.array(testDict["background"])}
 
+print("Test and Training data ready")
+
 params = {
     'problem': {'name': 'classification', 'random_seed': 420 },
     'algorithm': {'name': 'VQC', 'override_SPSA_params': True},
@@ -84,10 +89,24 @@ params = {
     'feature_map': {'name': 'SecondOrderExpansion', 'depth': int(args.featMapDepth)}
 }
 
+if args.steerCobylaOptim:
+    params = {
+        'problem': {'name': 'classification', 'random_seed': 420 },
+        'algorithm': {'name': 'VQC', 'override_SPSA_params': True},
+        'backend': {'shots': int(args.numberShots)},
+        'optimizer': {'name': 'SLSQP','maxiter' : 10 , 'disp': True},
+        'variational_form': {'name': 'RYRZ', 'depth': int(args.varFormDepth)},
+        'feature_map': {'name': 'SecondOrderExpansion', 'depth': int(args.featMapDepth)}
+    }
+
+
+print("Creating Classification input")
 classification_input = ClassificationInput(trainDict, testDict, x_test)
+print("Getting Backend")
 backend = BasicAer.get_backend('qasm_simulator')
 result=None
 if not args.steerTestRun:
+    print("Running Algorithm")
     result = run_algorithm(params, classification_input, backend=backend)
     print("testing success ratio: ", result['testing_accuracy'])
     print("predicted classes:", result['predicted_classes'])
