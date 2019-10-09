@@ -4,30 +4,33 @@ var1 = 'lep1_pt'
 var2 = 'lep2_pt'
 var3 = 'reco_zv_mass'
 
-def plotVars(x_train, pandaDF, label_names):
-    fig = plt.figure(figsize=(12, 8))
-    for t in range(2):
-        x=[]
-        y=[]
-        z=[]
-        for i in range(len(x_train)):
-            if pandaDF['isSignal'][i] == t:
-                x.append(x_train[i,0])
-                y.append(x_train[i,1])
-                z.append(x_train[i,2])
-        n, bins, patches = plt.hist(x, 20,normed=1, alpha=0.5)
-        plt.xlabel()
-        plt.ylabel('Normalised Event')
-        plt.title('Histogram of IQ')
-        plt.savefig('dist_{}.pdf'.format())
+def plotVars(x_train, pandaDF, variables, label_names):
+    fig = plt.figure(figsize=(12, 9))
+    # label
+    fig.suptitle('VV training dataset')
+    subPlots={}
+    for var_idx in range(len(variables)):
+        subPlots[var_idx] = fig.add_subplot(2, 3, var_idx+1)
+        subPlots[var_idx].ticklabel_format(style='sci', axis='both', scilimits=(0,0))
+        
+        subPlots[var_idx].set_ylabel('Normalised Event')
+        subPlots[var_idx].set_xlabel(variables[var_idx])
+        for t in range(2):
+            x=[]
+            for i in range(len(x_train)):
+                if pandaDF['isSignal'][i] == t:
+                    x.append(x_train[i,var_idx])
+            n, bins, patches = subPlots[var_idx].hist(x, 20, density=1, alpha=0.5, label=label_names[t])
+        subPlots[var_idx].legend()
+    plt.savefig('dist_1d.pdf')
     pass
 
 def plotTruth(x_train, pandaDF, label_names):
-    fig = plt.figure(figsize=(12, 8))
+    fig = plt.figure(figsize=(12, 9))
     
-    ax1 = fig.add_subplot(2, 2, 1)
-    ax2 = fig.add_subplot(2, 2, 2)
-    ax3 = fig.add_subplot(2, 2, 3)
+    ax1 = fig.add_subplot(2, 3, 1)
+    ax2 = fig.add_subplot(2, 3, 2)
+    ax3 = fig.add_subplot(2, 3, 3)
     subPlots=[ax1,ax2,ax3]
     for t in range(2):
         x=[]
@@ -39,12 +42,10 @@ def plotTruth(x_train, pandaDF, label_names):
                 y.append(x_train[i,1])
                 z.append(x_train[i,2])
         cm = [plt.cm.Paired([c]) for c in [0,6]]
-        ax1.scatter(x, y, c=cm[t], edgecolors='k', label=label_names[t])
-        ax2.scatter(x, z, c=cm[t], edgecolors='k', label=label_names[t])
-        ax3.scatter(y, z, c=cm[t], edgecolors='k', label=label_names[t])
+        ax1.scatter(x, y, c=cm[t], edgecolors='none',alpha=0.5, label=label_names[t])
+        ax2.scatter(x, z, c=cm[t], edgecolors='none',alpha=0.5, label=label_names[t])
+        ax3.scatter(y, z, c=cm[t], edgecolors='none',alpha=0.5, label=label_names[t])
     
-    # label
-    fig.suptitle('VV training dataset')
     for pl in subPlots:
         pl.ticklabel_format(style='sci', axis='both', scilimits=(0,0))
         pl.legend()

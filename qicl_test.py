@@ -12,12 +12,7 @@ import time
 time0=time.time()
 
 from qiskit import BasicAer
-from qiskit.aqua import run_algorithm, QuantumInstance
-from qiskit.aqua.algorithms import VQC
-from qiskit.aqua.components.optimizers import SPSA
-from qiskit.aqua.components.feature_maps import SecondOrderExpansion
-from qiskit.aqua.components.variational_forms import RYRZ
-from qiskit.aqua.utils import split_dataset_to_data_and_labels, map_label_to_class_name
+from qiskit.aqua import run_algorithm
 from qiskit.aqua.input import ClassificationInput
 
 import numpy as np
@@ -28,13 +23,13 @@ from argparse import ArgumentParser
 
 argParser = ArgumentParser(add_help=False)
 argParser.add_argument( '-t', '--steerTestRun', action="store_true")
-argParser.add_argument( '-od', '--steerOutDir', help='Output Directory', default="/tmp/edrechsl/")
-argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=1000)
-argParser.add_argument( '-sh',   '--numberShots', help='Number of shots', default=1024)
+argParser.add_argument( '-od', '--steerOutDir', help='Output Directory', default=".")
+argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=10)
+argParser.add_argument( '-sh',   '--numberShots', help='Number of shots', default=100)
 argParser.add_argument( '-mt',   '--maxTrials', help='Max trials SPSA', default=20)
-argParser.add_argument( '-ss',   '--saveSteps', help='SPSA save steps', default=5)
-argParser.add_argument( '-vfd',  '--varFormDepth', help='variational form depth', default=2)
-argParser.add_argument( '-fmd',  '--featMapDepth', help='Feature Map depth', default=1)
+argParser.add_argument( '-ss',   '--saveSteps', help='SPSA save steps', default=3)
+argParser.add_argument( '-vfd',  '--varFormDepth', help='variational form depth', default=3)
+argParser.add_argument( '-fmd',  '--featMapDepth', help='Feature Map depth', default=3)
 #default
 #argParser.add_argument( '-spsa',  '--spsaoptim', help='Use SPSA optimiser', action='store_true')
 argParser.add_argument( '-cob',  '--steerCobylaOptim', help='Use COBYLA optimiser', action='store_true')
@@ -60,7 +55,7 @@ testDict ={"signal": [], "background": []}
 
 
 label_names = ['background','signal']
-#plotVars(x_train, in_df, label_names)
+plotVars(x_train, in_df, [var1,var2,var3], label_names)
 #plotTruth(x_train,in_df,label_names)
 
 #TODO better way of dealing with this?
