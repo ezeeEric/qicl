@@ -11,7 +11,8 @@ import pickle
 import time
 time0=time.time()
 
-from datasets import *
+from plotter import plotTruth,plotVars
+#from datasets import *
 from qiskit import BasicAer
 from qiskit.aqua import run_algorithm, QuantumInstance
 from qiskit.aqua.algorithms import VQC
@@ -21,7 +22,6 @@ from qiskit.aqua.components.variational_forms import RYRZ
 from qiskit.aqua.input import ClassificationInput
 import numpy as np
 
-from plotter import plotTruth,plotVars
 
 from argparse import ArgumentParser
 
