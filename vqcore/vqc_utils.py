@@ -1,5 +1,45 @@
 import numpy as np
+from qiskit.aqua import QuantumInstance
+from utils.tools import timelogDict,chronomat
 
+
+@chronomat
+def getSimulationInstance(nShots=1000):
+    from qiskit import BasicAer
+    backend = BasicAer.get_backend('qasm_simulator')
+    quantum_instance = QuantumInstance(
+            backend = backend,
+            shots=nShots)
+    return quantum_instance  
+
+@chronomat
+def getIBMQInstance(nShots=1000):
+    from qiskit import IBMQ
+    provider = IBMQ.load_account()
+    from qiskit.providers.ibmq import least_busy
+    least_busy_device = least_busy(provider.backends(simulator=False))
+    print("Using currently least busy device: ", least_busy_device)
+    quantum_instance = QuantumInstance(
+            backend = least_busy_device,
+            shots=nShots)
+    return quantum_instance
+
+@chronomat
+def trainVQC(vqc,qi):
+    result=None
+    print("Running VQC")
+    result = vqc.run(qi)
+    print("testing success ratio: ", result['testing_accuracy'])
+    return result
+
+@chronomat
+def predictVQC(vqc,testData):
+    predicted_probs, predicted_labels = vqc.predict(testData)
+    predicted_classes = map_label_to_class_name(predicted_labels, vqc.label_to_class)
+    print("prediction:   {}".format(predicted_labels))
+    return predicted_classes
+
+##############from qiskit.vqc
 def assign_label(measured_key, num_classes):
     """
     Classes = 2:

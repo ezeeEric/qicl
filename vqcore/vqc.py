@@ -16,9 +16,10 @@ import logging
 import math
 import time
 import numpy as np
-from scipy.optimize import minimize
 
 from sklearn.utils import shuffle
+from sklearn.metrics import log_loss
+
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.aqua import Pluggable, PluggableType, get_pluggable_class, AquaError
 from qiskit.aqua.utils import get_feature_dimension
@@ -26,114 +27,12 @@ from qiskit.aqua.utils import map_label_to_class_name
 from qiskit.aqua.utils import split_dataset_to_data_and_labels
 from qiskit.aqua.algorithms.adaptive.vq_algorithm import VQAlgorithm
 
+from utils.tools import timelogDict,accumulativeChronomat,accumulativeChronomat
+
+from vqcore.vqc_utils import assign_label,cost_estimate,cost_estimate_sigmoid,return_probabilities
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-def assign_label(measured_key, num_classes):
-    """
-    Classes = 2:
-    - If odd number of qubits we use majority vote
-    - If even number of qubits we use parity
-    Classes = 3
-    - We use part-parity
-        {ex. for 2 qubits: [00], [01,10], [11] would be the three labels}
-    Args:
-        measured_key (str): measured key
-        num_classes (int): number of classes
-    """
-    measured_key = np.asarray([int(k) for k in list(measured_key)])
-    num_qubits = len(measured_key)
-    if num_classes == 2:
-        if num_qubits % 2 != 0:
-            total = np.sum(measured_key)
-            return 1 if total > num_qubits / 2 else 0
-        else:
-            hamming_weight = np.sum(measured_key)
-            is_odd_parity = hamming_weight % 2
-            return is_odd_parity
-
-    elif num_classes == 3:
-        first_half = int(np.floor(num_qubits / 2))
-        modulo = num_qubits % 2
-        # First half of key
-        hamming_weight_1 = np.sum(measured_key[0:first_half + modulo])
-        # Second half of key
-        hamming_weight_2 = np.sum(measured_key[first_half + modulo:])
-        is_odd_parity_1 = hamming_weight_1 % 2
-        is_odd_parity_2 = hamming_weight_2 % 2
-
-        return is_odd_parity_1 + is_odd_parity_2
-
-    else:
-        total_size = 2**num_qubits
-        class_step = np.floor(total_size / num_classes)
-
-        decimal_value = measured_key.dot(1 << np.arange(measured_key.shape[-1] - 1, -1, -1))
-        key_order = int(decimal_value / class_step)
-        return key_order if key_order < num_classes else num_classes - 1
-
-
-def cost_estimate(probs, gt_labels, shots=None):
-    """Calculate cross entropy
-    # shots is kept since it may be needed in future.
-    Args:
-        shots (int): the number of shots used in quantum computing
-        probs (numpy.ndarray): NxK array, N is the number of data and K is the number of class
-        gt_labels (numpy.ndarray): Nx1 array
-    Returns:
-        float: cross entropy loss between estimated probs and gt_labels
-    """
-    mylabels = np.zeros(probs.shape)
-    for i in range(gt_labels.shape[0]):
-        whichindex = gt_labels[i]
-        mylabels[i][whichindex] = 1
-
-    def cross_entropy(predictions, targets, epsilon=1e-12):
-        predictions = np.clip(predictions, epsilon, 1. - epsilon)
-        N = predictions.shape[0]
-        tmp = np.sum(targets*np.log(predictions), axis=1)
-        ce = -np.sum(tmp)/N
-        return ce
-
-    x = cross_entropy(probs, mylabels)
-    return x
-
-
-def cost_estimate_sigmoid(shots, probs, gt_labels):
-    """Calculate sigmoid cross entropy
-
-    Args:
-        shots (int): the number of shots used in quantum computing
-        probs (numpy.ndarray): NxK array, N is the number of data and K is the number of class
-        gt_labels (numpy.ndarray): Nx1 array
-    Returns:
-        float: sigmoid cross entropy loss between estimated probs and gt_labels
-    """
-    # Error in the order of parameters corrected below - 19 Dec 2018
-    # x = cost_estimate(shots, probs, gt_labels)
-    x = cost_estimate(probs, gt_labels, shots)
-    loss = (1.) / (1. + np.exp(-x))
-    return loss
-
-
-def return_probabilities(counts, num_classes):
-    """Return the probabilities of given measured counts
-    Args:
-        counts ([dict]): N data and each with a dict recording the counts
-        num_classes (int): number of classes
-    Returns:
-        numpy.ndarray: NxK array
-    """
-
-    probs = np.zeros(((len(counts), num_classes)))
-    for idx in range(len(counts)):
-        count = counts[idx]
-        shots = sum(count.values())
-        for k, v in count.items():
-            label = assign_label(k, num_classes)
-            probs[idx][label] += v / shots
-    return probs
-
 
 class VQC(VQAlgorithm):
 
@@ -196,7 +95,6 @@ class VQC(VQAlgorithm):
             max_evals_grouped=1,
             minibatch_size=-1,
             callback=None,
-            manualOptimisation=None
 
     ):
         """Initialize the object
@@ -254,7 +152,11 @@ class VQC(VQAlgorithm):
         self._feature_map = feature_map
         self._num_qubits = feature_map.num_qubits
         
-        self.manualOptimisation=manualOptimisation
+        self.qcl_maxiter=1
+        self.qcl_n_iter=1
+        self.qcl_y_list=self._training_dataset[1]
+
+        self.itCounter={}
 
     @classmethod
     def init_params(cls, params, algo_input):
@@ -293,7 +195,8 @@ class VQC(VQAlgorithm):
         return cls(optimizer, feature_map, var_form, algo_input.training_dataset,
                    algo_input.test_dataset, algo_input.datapoints, max_evals_grouped,
                    minibatch_size)
-
+    
+    @accumulativeChronomat
     def construct_circuit(self, x, theta, measurement=False):
         """
         Construct circuit based on data and parameters in variational form.
@@ -308,14 +211,33 @@ class VQC(VQAlgorithm):
         qr = QuantumRegister(self._num_qubits, name='q')
         cr = ClassicalRegister(self._num_qubits, name='c')
         qc = QuantumCircuit(qr, cr)
-        qc += self._feature_map.construct_circuit(x, qr)
-        qc += self._var_form.construct_circuit(theta, qr)
-        
+        qc += self.timedFMconstruct_circuit(x, qr)
+        qc += self.timedVFconstruct_circuit(theta, qr)
         if measurement:
+            #"fixes" circuit block
+            #any compilerside modifications contained within that block.
             qc.barrier(qr)
-            qc.measure(qr, cr)
+            self.timed_qc_measure(qc, qr, cr)
+            #qc.measure(qr, cr)
         return qc
+    
+    @accumulativeChronomat
+    def timed_qc_measure(self, qc, qr, cr):
+        qc.measure(qr, cr)
 
+    @accumulativeChronomat
+    def timedFMconstruct_circuit(self, x,qr):
+        return self._feature_map.construct_circuit(x, qr)
+    
+    @accumulativeChronomat
+    def timedVFconstruct_circuit(self,theta,qr):
+        return self._var_form.construct_circuit(theta,qr)
+    
+    @accumulativeChronomat
+    def timedQIexecute(self,vals):
+        return self._quantum_instance.execute(vals)
+     
+    @accumulativeChronomat
     def _get_prediction(self, data, theta):
         """
         Make prediction on data based on each theta.
@@ -347,7 +269,8 @@ class VQC(VQAlgorithm):
                 circuits[circuit_id] = circuit
                 circuit_id += 1
 
-        results = self._quantum_instance.execute(list(circuits.values()))
+        #results = self._quantum_instance.execute(list(circuits.values()))
+        results = self.timedQIexecute(list(circuits.values()))
 
         circuit_id = 0
         predicted_probs = []
@@ -401,7 +324,8 @@ class VQC(VQAlgorithm):
 
     def is_gradient_really_supported(self):
         return self.optimizer.is_gradient_supported and not self.optimizer.is_gradient_ignored
-
+  
+    @accumulativeChronomat
     def train(self, data, labels, quantum_instance=None, minibatch_size=-1):
         """Train the models, and save results.
 
@@ -446,6 +370,43 @@ class VQC(VQAlgorithm):
 
         self._ret['training_loss'] = self._ret['min_val']
     
+    
+    def qcl_pred(self,theta):
+        predicted_probs, predicted_labels = self._get_prediction(self._training_dataset[0], theta)
+        return predicted_labels
+
+    def qcl_cost_func(self, theta):
+        """QCL adapted Cost function
+        :param theta: List of rotation angle theta
+        """
+        y_pred = self.qcl_pred(theta)
+        # cross-entropy loss
+        loss = log_loss(self.qcl_y_list, y_pred)
+        return loss
+    
+    # for BFGS
+    def qcl_b_grad(self, theta):
+        # Return the list of dB/dtheta
+        theta_plus = [theta.copy() + np.eye(len(theta))[i] * np.pi / 2. for i in range(len(theta))]
+        theta_minus = [theta.copy() - np.eye(len(theta))[i] * np.pi / 2. for i in range(len(theta))]
+
+        grad = [(self.qcl_pred(theta_plus[i]) - self.qcl_pred(theta_minus[i])) / 2. for i in range(len(theta))]
+
+        return np.array(grad)
+
+    # for BFGS
+    def qcl_cost_func_grad(self, theta):
+        y_minus_t = self.qcl_pred(theta) - self.qcl_y_list
+        B_gr_list = self.qcl_b_grad(theta)
+        grad = [np.sum(y_minus_t * B_gr) for B_gr in B_gr_list]
+        return np.array(grad)
+    
+    def qcl_callbackF(self, theta):
+            self.qcl_n_iter = self.qcl_n_iter + 1
+            if 10 * self.qcl_n_iter % self.qcl_maxiter == 0:
+                print("Iteration: ",self.qcl_n_iter / self.qcl_maxiter,",  Value of cost_func: ",self.qcl_cost_func(theta))
+    
+    @accumulativeChronomat
     def find_minimum(self, initial_point=None, var_form=None, cost_fn=None, optimizer=None, gradient_fn=None):
         """Optimize to find the minimum cost value.
            #OVERWRITTEN
@@ -456,7 +417,6 @@ class VQC(VQAlgorithm):
             ValueError:
 
         """
-        print("OVERWRITTEN")
         initial_point = initial_point if initial_point is not None else self._initial_point
         var_form = var_form if var_form is not None else self._var_form
         cost_fn = cost_fn if cost_fn is not None else self._cost_fn
@@ -492,42 +452,18 @@ class VQC(VQAlgorithm):
             gradient_fn = None
 
         logger.info('Starting optimizer.\nbounds={}\ninitial point={}'.format(bounds, initial_point))
-        if self.manualOptimisation:
-            print("Optimmmmmise dis bud")
-            result = minimize(self.cost_func,
-                      self.theta,
-                      # method='Nelder-Mead',
-                      method='BFGS',
-                      jac=self.cost_func_grad,
-                      options={"maxiter":maxiter},
-                      callback=self.callbackF
-                      )
-
-
-        else:
-            print("default optimizer input")
-            print(20*"#")
-            print("var_form.num_parameters: {0} ".format(var_form.num_parameters))
-            print("cost_fn: {0}".format(cost_fn))
-            print("variable_bounds: {0}".format(bounds))
-            print("initial_point: {0}".format(initial_point))
-            print("gradient_function: {0}".format(gradient_fn))
-            opt_params, opt_val, num_optimizer_evals = optimizer.optimize(var_form.num_parameters,
-                                                                          cost_fn,
-                                                                          variable_bounds=bounds,
-                                                                          initial_point=initial_point,
-                                                                      gradient_function=gradient_fn)
-            print("default optimizer output")
-            print(20*"#")
-            print("opt_params: {0}".format(opt_params))
-            print("opt_val: {0}".format(opt_val))
-            print("num_optimizer_evals: {0}".format(num_optimizer_evals))
-
-        eval_time = time.time() - start
+        
         ret = {}
+        opt_params, opt_val, num_optimizer_evals = optimizer.optimize(var_form.num_parameters,
+                                                                      cost_fn,
+                                                                      variable_bounds=bounds,
+                                                                      initial_point=initial_point,
+                                                                      gradient_function=gradient_fn)
         ret['num_optimizer_evals'] = num_optimizer_evals
         ret['min_val'] = opt_val
         ret['opt_params'] = opt_params
+
+        eval_time = time.time() - start
         ret['eval_time'] = eval_time
 
         return ret
@@ -551,9 +487,16 @@ class VQC(VQAlgorithm):
         if self.is_gradient_really_supported():
             self._batch_index += 1  # increment the batch after gradient callback
         return grad
-
+    
+    @accumulativeChronomat
     def _cost_function_wrapper(self, theta):
         batch_index = self._batch_index % len(self._batches)
+        if batch_index in self.itCounter.keys():
+            self.itCounter[batch_index]+=1
+        else:
+            self.itCounter[batch_index]=1
+        if batch_index%5==0:
+            print("Optimiser iteration {0} - batch {1}".format(self.itCounter[batch_index],batch_index))
         predicted_probs, predicted_labels = self._get_prediction(self._batches[batch_index], theta)
         total_cost = []
         if not isinstance(predicted_probs, list):
@@ -574,7 +517,8 @@ class VQC(VQAlgorithm):
 
         logger.debug('Intermediate batch cost: {}'.format(sum(total_cost)))
         return total_cost if len(total_cost) > 1 else total_cost[0]
-
+  
+    @accumulativeChronomat
     def test(self, data, labels, quantum_instance=None, minibatch_size=-1, params=None):
         """Predict the labels for the data, and test against with ground truth labels.
 
@@ -613,6 +557,7 @@ class VQC(VQAlgorithm):
         self._ret['testing_loss'] = total_cost / len(batches)
         return total_accuracy
 
+    @accumulativeChronomat
     def predict(self, data, quantum_instance=None, minibatch_size=-1, params=None):
         """Predict the labels for the data.
 
@@ -639,7 +584,7 @@ class VQC(VQAlgorithm):
             if len(batches) > 0:
                 logger.debug('Predicting batch {}'.format(i))
             batch_probs, batch_labels = self._get_prediction(batch, params)
-            if not predicted_probs and not predicted_labels:
+            if predicted_probs is None and predicted_labels is None:
                 predicted_probs = batch_probs
                 predicted_labels = batch_labels
             else:
