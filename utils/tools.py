@@ -15,7 +15,7 @@ def chronomat(method):
     """
     Method to measure execution time of single methods.
     Simply add the decorator @chronomat to your method to print methods execution time at the 
-    end of the plotalyzer run. Stores values in a global dictionary.
+    end of the code run. Stores values in a global dictionary.
     """
     @wraps(method)
     def timeThis(*args, **kw):
@@ -26,8 +26,20 @@ def chronomat(method):
         return result
     return timeThis
 
-#        logger=logging.getLogger("Elapsed time for method")
-#        logger.setLevel(1)
-#        for key, item in timelogDict.items():
-#            logger.log(1,'%s(): %s' % (key, item))
-
+def accumulativeChronomat(method):
+    """
+    Method to measure execution time of single methods.
+    Simply add the decorator @chronomat to your method to print methods execution time at the 
+    end of the code run. Stores values in a global dictionary.
+    """
+    @wraps(method)
+    def timeThis(*args, **kw):
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+        if 'acc_'+method.__module__+'.'+method.__name__ in timelogDict:
+            timelogDict['acc_'+method.__module__+'.'+method.__name__]+=(te - ts) * 1000
+        else:
+            timelogDict['acc_'+method.__module__+'.'+method.__name__]=(te - ts) * 1000
+        return result
+    return timeThis
