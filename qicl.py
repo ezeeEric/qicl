@@ -10,20 +10,19 @@ import pickle
 import time
 
 time0=time.time()
-#from datasets import *
-from qiskit.aqua.components.variational_forms import RYRZ
-from qiskit.aqua.input import ClassificationInput
-from qiskit.aqua.utils import split_dataset_to_data_and_labels, map_label_to_class_name
 import numpy as np
 
 from utils.plotter import plotTruth,plotVars,plotVarsInd
 
+from qiskit.aqua.components.variational_forms import RYRZ
+from qiskit.aqua.input import ClassificationInput
+from qiskit.aqua.utils import split_dataset_to_data_and_labels, map_label_to_class_name
 from vqcore.vqc import VQC
 from vqcore.vqc_utils import getSimulationInstance,getIBMQInstance,trainVQC,predictVQC
 from vqcore.featureMaps import getFeatureMap
 from vqcore.optimisers import getOptimiser
 
-from utils.tools import timelogDict,chronomat
+from utils.tools import timelogDict,chronomat,min_max_scaling
 from argparse import ArgumentParser
 
 argParser = ArgumentParser(add_help=False)
@@ -55,8 +54,9 @@ y_train_label=in_df['isSignal'].values[:nevt] #[0 1 0 ...]
 y_test_label=in_df['isSignal'].values[nevt:2*nevt] #same
 x_train=in_df.loc[:nevt-1,[var1, var2, var3]].values #[[var1 var2 var3], [var1 var2 var3],...]
 x_test=in_df.loc[nevt:2*nevt-1,[var1, var2, var3]].values
-y_train=np.eye(2)[y_train_label]
-y_test=np.eye(2)[y_test_label]
+
+#y_train=np.eye(2)[y_train_label]
+#y_test=np.eye(2)[y_test_label]
 
 trainDict={"signal": [], "background": []}
 testDict ={"signal": [], "background": []}
@@ -73,14 +73,20 @@ for i in range(0,nevt):
         trainDict["signal"].append(x_train[i].tolist())
     else:
          trainDict["background"].append(x_train[i].tolist())
-trainDict={"signal": np.array(trainDict["signal"]), "background":  np.array(trainDict["background"])}
+
+trainSig_normed=min_max_scaling(np.array(trainDict["signal"]))
+trainBg_normed=min_max_scaling(np.array(trainDict["background"]))
+trainDict={"signal": trainSig_normed, "background":  trainBg_normed}
             
 for i in range(0,nevt):
     if (y_test_label[i]==1):
         testDict["signal"].append(x_test[i].tolist())
     else:
-         testDict["background"].append(x_test[i].tolist())
-testDict={"signal": np.array(testDict["signal"]), "background":  np.array(testDict["background"])}
+        testDict["background"].append(x_test[i].tolist())
+testSig_normed=min_max_scaling(np.array(testDict["signal"]))
+testBg_normed=min_max_scaling(np.array(testDict["background"]))
+testDict={"signal": testSig_normed, "background":  testBg_normed}
+#testDict={"signal": np.array(testDict["signal"]), "background":  np.array(testDict["background"])}
 
 datapoints, class_to_label = split_dataset_to_data_and_labels(testDict)
 print("Test and Training data ready")
@@ -122,12 +128,13 @@ else:
 defVQC=getDefaultVQC(optimiser,featureMap)
 result=trainVQC(defVQC,quInstance)
 
-#prediction=predictVQC(defVQC, datapoints[0])
+#predicted_probs, predicted_labels = predictVQC(defVQC, datapoints[0])
 
 #time or tag setting in name
 outtag="_".join([str(vars(args)[i]) if not "steer" in str(i) else "" for i in vars(args)])
 outtag+="_%s"%(int(time.time()))
 pklFile=open("{0}/output/qicl{1}.pkl".format(args.steerOutDir,outtag),'wb')
+pickle.dump( defVQC , pklFile)
 pickle.dump( result , pklFile)
 pickle.dump( vars(args) , pklFile)
 

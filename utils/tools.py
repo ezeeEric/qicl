@@ -43,3 +43,12 @@ def accumulativeChronomat(method):
             timelogDict['acc_'+method.__module__+'.'+method.__name__]=(te - ts) * 1000
         return result
     return timeThis
+
+
+def min_max_scaling(x, axis=None):
+     """Normalized to [-1, 1]"""
+     min = x.min(axis=axis, keepdims=True)
+     max = x.max(axis=axis, keepdims=True)
+     result = (x-min)/(max-min)
+     result = 2.*result-1.
+     return result

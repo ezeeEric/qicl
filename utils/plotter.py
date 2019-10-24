@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 def plotVarsInd(x_train, pandaDF, variables, label_names):
