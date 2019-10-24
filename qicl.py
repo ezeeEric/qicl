@@ -16,7 +16,7 @@ from qiskit.aqua.input import ClassificationInput
 from qiskit.aqua.utils import split_dataset_to_data_and_labels, map_label_to_class_name
 import numpy as np
 
-from utils.plotter import plotTruth,plotVars
+from utils.plotter import plotTruth,plotVars,plotVarsInd
 
 from vqcore.vqc import VQC
 from vqcore.vqc_utils import getSimulationInstance,getIBMQInstance,trainVQC,predictVQC
@@ -31,9 +31,9 @@ argParser.add_argument( '-t', '--steerTestRun', action="store_true")
 argParser.add_argument( '-od', '--steerOutDir', help='Output Directory', default=".")
 argParser.add_argument( '-nevt', '--numberEvents', help='Number of events', default=100)
 argParser.add_argument( '-mbs', '--minibatchsize', help='Number of events', default=-1)
-argParser.add_argument( '-sh',   '--numberShots', help='Number of shots', default=10)
+argParser.add_argument( '-sh',   '--numberShots', help='Number of shots', default=1024)
 #this is mainly driving runtime
-argParser.add_argument( '-mi',   '--maxiter', help='Max trials', default=10)
+argParser.add_argument( '-mi',   '--maxiter', help='Max trials', default=100)
 argParser.add_argument( '-ss',   '--saveSteps', help='SPSA save steps', default=5)
 argParser.add_argument( '-vfd',  '--varFormDepth', help='variational form depth', default=2)
 argParser.add_argument( '-fd',  '--feature_dimension', help='Feature Map dimension', default=3)
@@ -62,8 +62,10 @@ trainDict={"signal": [], "background": []}
 testDict ={"signal": [], "background": []}
 
 label_names = ['background','signal']
-# plotVars(x_train, in_df, [var1,var2,var3], label_names)
-# plotTruth(x_train,in_df,label_names)
+plotVarsInd(x_train, in_df, [var1,var2,var3], label_names)
+plotTruth(x_train,in_df,label_names)
+import sys
+sys.exit()
 
 #TODO better way of dealing with this?
 for i in range(0,nevt):
@@ -91,7 +93,7 @@ def getDefaultVQC(optimiser,feature_map):
             entanglement='full',
             entanglement_gate='cx',
     )
-
+    print(trainDict,testDict)
     vqc = VQC(optimiser, feature_map, var_form, trainDict, testDict, max_evals_grouped=1,minibatch_size=int(args.minibatchsize))
     return vqc
 
