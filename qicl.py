@@ -22,7 +22,7 @@ from vqcore.vqc_utils import getSimulationInstance,getIBMQInstance,trainVQC,pred
 from vqcore.featureMaps import getFeatureMap
 from vqcore.optimisers import getOptimiser
 
-from utils.tools import timelogDict,chronomat,min_max_scaling
+from utils.tools import timelogDict,chronomat,min_max_scaling,getEfficiency
 from argparse import ArgumentParser
 
 argParser = ArgumentParser(add_help=False)
@@ -40,6 +40,7 @@ argParser.add_argument( '-fmd',  '--featureMapDepth', help='Feature Map depth', 
 argParser.add_argument( '-nqb',  '--numberQbits', help='Number of qbits', default=3)
 argParser.add_argument( '-opt',  '--optimiser', help='Choose optimiser [SPSA,COBYLA,L_BFGS_B,NELDER_MEAD,P_BFGS,SLSQP]', type=str, default="COBYLA")
 argParser.add_argument( '-qu',  '--quantum', help='Run on IBMQ', action="store_true")
+argParser.add_argument( '-dp',  '--doPlots', help='Create Plots', action="store_true")
 args = argParser.parse_args()
 
 in_df = pandas.read_pickle("./input/MixData_PD.pkl")
@@ -62,10 +63,11 @@ trainDict={"signal": [], "background": []}
 testDict ={"signal": [], "background": []}
 
 label_names = ['background','signal']
-plotVarsInd(x_train, in_df, [var1,var2,var3], label_names)
-plotTruth(x_train,in_df,label_names)
-import sys
-sys.exit()
+if args.doPlots:
+    plotVarsInd(x_train, in_df, [var1,var2,var3], label_names)
+    plotTruth(x_train,in_df,label_names)
+    import sys
+    sys.exit()
 
 #TODO better way of dealing with this?
 for i in range(0,nevt):
@@ -99,7 +101,6 @@ def getDefaultVQC(optimiser,feature_map):
             entanglement='full',
             entanglement_gate='cx',
     )
-    print(trainDict,testDict)
     vqc = VQC(optimiser, feature_map, var_form, trainDict, testDict, max_evals_grouped=1,minibatch_size=int(args.minibatchsize))
     return vqc
 
@@ -128,13 +129,16 @@ else:
 defVQC=getDefaultVQC(optimiser,featureMap)
 result=trainVQC(defVQC,quInstance)
 
-#predicted_probs, predicted_labels = predictVQC(defVQC, datapoints[0])
+predicted_probs, predicted_labels = predictVQC(defVQC, datapoints[0])
+
+effDict=getEfficiency(datapoints[1],predicted_labels)
 
 #time or tag setting in name
 outtag="_".join([str(vars(args)[i]) if not "steer" in str(i) else "" for i in vars(args)])
 outtag+="_%s"%(int(time.time()))
 pklFile=open("{0}/output/qicl{1}.pkl".format(args.steerOutDir,outtag),'wb')
 pickle.dump( defVQC , pklFile)
+pickle.dump( effDict , pklFile)
 pickle.dump( result , pklFile)
 pickle.dump( vars(args) , pklFile)
 

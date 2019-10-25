@@ -6,6 +6,7 @@
 import sys
 from functools import wraps
 import time
+import numpy as np
 
 #create global dictionary to store execution times of various methods
 from collections import OrderedDict
@@ -52,3 +53,42 @@ def min_max_scaling(x, axis=None):
      result = (x-min)/(max-min)
      result = 2.*result-1.
      return result
+
+def getEfficiency(trueLabel,predLabel):
+  if abs(len(trueLabel)-len(predLabel))>0:
+    print("Error labellist length")
+  print(trueLabel)
+  print(predLabel)
+  nSig=np.count_nonzero(trueLabel==1)
+  nBg=np.count_nonzero(trueLabel==0)
+  nSigTP=nSigFP=0.
+  nBgTP=nBgFP=0.
+  for lab in range(len(trueLabel)):
+    if trueLabel[lab]==predLabel[lab]:
+      if trueLabel[lab]==1: nSigTP+=1. 
+      if trueLabel[lab]==0: nBgTP+=1.
+    #FP bg
+    if trueLabel[lab]==0 and predLabel[lab]==1:
+      nSigFP+=1
+    if trueLabel[lab]==1 and predLabel[lab]==0:
+      nBgFP+=1
+   
+  sigEff=nSigTP/nSig
+  bgEff=nBgTP/nBg
+  bgFPrate=nSigFP/nBg
+
+  effDict={
+    "nSig":   nSig,
+    "nBg":    nBg,
+    "nSigTP": nSigTP,
+    "nSigFP": nSigFP,
+    "nBgTP":  nBgTP,
+    "nBgFP":  nBgFP,
+    "sigEff": sigEff,
+    "bgEff":  bgEff,
+    "bgFPrate":  bgFPrate,
+  }
+  print("SigEff:",sigEff)
+  print("BgEff:",bgEff)
+  print("FPrate:",bgFPrate)
+  return sigEff

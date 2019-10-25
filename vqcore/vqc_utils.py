@@ -35,10 +35,7 @@ def trainVQC(vqc,qi):
 @chronomat
 def predictVQC(vqc,testData):
     predicted_probs, predicted_labels = vqc.predict(testData)
-    print(predicted_probs,predicted_labels)
-    predicted_classes = map_label_to_class_name(predicted_labels, vqc.label_to_class)
-    print("prediction:   {}".format(predicted_labels))
-    return predicted_classes
+    return predicted_probs, predicted_labels 
 
 ##############from qiskit.vqc
 def assign_label(measured_key, num_classes):
